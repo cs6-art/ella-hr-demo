@@ -764,13 +764,11 @@ button { border: 0; }
 const WEBHOOK_URL =
   "https://n8n.srv1457709.hstgr.cloud/webhook/ella-demo-resume-intake";
 
-// Replace this with your separate n8n GET webhook for checking application/call status.
-// Expected example: GET /webhook/ella-application-status?application_id=APP-123
 const STATUS_WEBHOOK_URL =
   "https://n8n.srv1457709.hstgr.cloud/webhook/ella-application-status";
 
-const POLL_INTERVAL_MS = 3000;
-const MAX_POLL_ATTEMPTS = 40;
+// Your resume processor runs every minute, so polling every 5 seconds is enough.
+const POLL_INTERVAL_MS = 5000;
 
 const loadingSteps = [
   "Uploading resume...",
@@ -790,7 +788,7 @@ const fileInput = document.getElementById("resume");
 const fileName = document.getElementById("fileName");
 
 let pollingTimer = null;
-let pollingAttempts = 0;
+let activeApplicationId = null;
 
 fileInput.addEventListener("change", () => {
   fileName.textContent = fileInput.files[0]
@@ -808,6 +806,9 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
+  stopStatusPolling();
+  activeApplicationId = null;
+
   form.style.display = "none";
   errorState.style.display = "none";
   callWaiting.style.display = "none";
@@ -817,7 +818,7 @@ form.addEventListener("submit", async (event) => {
   let stepIndex = 0;
   statusText.textContent = loadingSteps[0];
 
-  const interval = setInterval(() => {
+  const loadingInterval = setInterval(() => {
     stepIndex += 1;
     if (stepIndex < loadingSteps.length) {
       statusText.textContent = loadingSteps[stepIndex];
@@ -839,10 +840,10 @@ form.addEventListener("submit", async (event) => {
     try {
       data = responseText ? JSON.parse(responseText) : {};
     } catch {
-      data = {};
+      throw new Error("The submission webhook returned an invalid response.");
     }
 
-    if (!response.ok) {
+    if (!response.ok || data.success === false) {
       throw new Error(
         data.message ||
         data.error ||
@@ -850,26 +851,35 @@ form.addEventListener("submit", async (event) => {
       );
     }
 
-    clearInterval(interval);
+    const applicationId = data.application_id || data.id;
+
+    if (!applicationId) {
+      throw new Error("No application ID was returned by the workflow.");
+    }
+
+    clearInterval(loadingInterval);
     loading.style.display = "none";
     callWaiting.style.display = "block";
 
-    const applicationId = data.application_id || data.id || "N/A";
+    activeApplicationId = applicationId;
     document.getElementById("appid").textContent = applicationId;
 
-    updateCallStatus(
-      data.call_status || data.status || "screening",
-      data.message
-    );
+    // Show the first state immediately while waiting for the first GET status response.
+    renderApplicationStatus({
+      stage: "screening",
+      step: 2,
+      title: "Ella is reviewing your application",
+      message: data.message ||
+        "Your resume was submitted successfully. Ella is now reviewing the application before starting the interview workflow.",
+      resume_status: data.status || "Processing",
+      voice_status: "",
+      final_status: "",
+      stop_polling: false
+    });
 
-    if (applicationId !== "N/A") {
-      startStatusPolling(applicationId);
-    } else {
-      document.getElementById("liveStatusText").textContent =
-        "Application submitted successfully";
-    }
+    startStatusPolling(applicationId);
   } catch (error) {
-    clearInterval(interval);
+    clearInterval(loadingInterval);
     loading.style.display = "none";
     showError(
       error.message ||
@@ -882,11 +892,8 @@ form.addEventListener("submit", async (event) => {
 
 function startStatusPolling(applicationId) {
   stopStatusPolling();
-  pollingAttempts = 0;
 
   const poll = async () => {
-    pollingAttempts += 1;
-
     try {
       const url = new URL(STATUS_WEBHOOK_URL);
       url.searchParams.set("application_id", applicationId);
@@ -897,27 +904,37 @@ function startStatusPolling(applicationId) {
         cache: "no-store"
       });
 
-      if (!response.ok) {
-        throw new Error(`Status request failed with ${response.status}`);
+      const responseText = await response.text();
+      let data = {};
+
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        throw new Error("The status webhook returned invalid JSON.");
       }
 
-      const data = await response.json();
-      const currentStatus =
-        data.call_status || data.status || data.application_status || "screening";
+      if (!response.ok) {
+        throw new Error(
+          data.message || `Status request failed with ${response.status}`
+        );
+      }
 
-      updateCallStatus(currentStatus, data.message);
+      // not_found is temporary because the Google Sheets row may not be visible yet.
+      if (data.stage === "not_found") {
+        document.getElementById("liveStatusText").textContent =
+          "Waiting for application record";
+        return;
+      }
 
-      if (isFinalStatus(currentStatus) || pollingAttempts >= MAX_POLL_ATTEMPTS) {
+      renderApplicationStatus(data);
+
+      if (data.stop_polling === true) {
         stopStatusPolling();
       }
     } catch (error) {
       console.warn("Unable to refresh Ella status:", error);
-
-      if (pollingAttempts >= MAX_POLL_ATTEMPTS) {
-        stopStatusPolling();
-        document.getElementById("liveStatusText").textContent =
-          "Application submitted. Ella's workflow is continuing.";
-      }
+      document.getElementById("liveStatusText").textContent =
+        "Reconnecting to Ella's workflow";
     }
   };
 
@@ -932,114 +949,119 @@ function stopStatusPolling() {
   }
 }
 
-function normalizeStatus(status) {
-  return String(status || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-}
-
-function updateCallStatus(rawStatus, message) {
-  const status = normalizeStatus(rawStatus);
+function renderApplicationStatus(data) {
+  const stage = normalizeStatus(data.stage || "screening");
+  const step = Number(data.step || 2);
   const title = document.getElementById("callTitle");
   const description = document.getElementById("callMessage");
   const liveStatus = document.getElementById("liveStatusText");
   const resultStatus = document.getElementById("resultStatus");
 
-  resetTimeline();
-  markStep("stepSubmitted", "complete");
+  title.textContent = data.title || "Ella is reviewing your application";
+  description.textContent = data.message ||
+    "Your application is moving through Ella's recruitment workflow.";
 
-  if (["received", "submitted", "queued", "processing", "screening", "resume_screening"].includes(status)) {
-    title.textContent = "Ella is reviewing your application";
-    description.textContent = message ||
-      "Your resume was submitted successfully. Ella is now reviewing the application before starting the interview workflow.";
-    liveStatus.textContent = "Screening resume";
-    resultStatus.textContent = "Screening";
-    markStep("stepScreening", "active");
-    return;
+  setTimelineStep(step);
+
+  const displayStatus = getDisplayStatus(stage, data);
+  liveStatus.textContent = displayStatus.live;
+  resultStatus.textContent = displayStatus.result;
+
+  // Keep the latest application ID if the status webhook returns it.
+  if (data.application_id) {
+    activeApplicationId = data.application_id;
+    document.getElementById("appid").textContent = data.application_id;
   }
-
-  if (["qualified", "call_queued", "preparing_call", "ready_for_call"].includes(status)) {
-    title.textContent = "Ella is preparing your interview";
-    description.textContent = message ||
-      "Your application has progressed to the voice interview stage. Please keep your phone nearby for Ella's call.";
-    liveStatus.textContent = "Preparing voice interview";
-    resultStatus.textContent = "Call queued";
-    markStep("stepScreening", "complete");
-    markStep("stepPreparing", "active");
-    return;
-  }
-
-  if (["calling", "ringing", "in_progress", "call_in_progress"].includes(status)) {
-    title.textContent = "Ella is calling you now";
-    description.textContent = message ||
-      "Please answer the incoming call to begin your AI voice interview.";
-    liveStatus.textContent = "Call in progress";
-    resultStatus.textContent = "Calling";
-    markStep("stepScreening", "complete");
-    markStep("stepPreparing", "complete");
-    markStep("stepCalling", "active");
-    return;
-  }
-
-  if (["completed", "interview_completed", "call_completed"].includes(status)) {
-    title.textContent = "Interview completed";
-    description.textContent = message ||
-      "Ella has completed the voice interview. The recruitment team will review the results.";
-    liveStatus.textContent = "Interview completed";
-    resultStatus.textContent = "Completed";
-    markStep("stepScreening", "complete");
-    markStep("stepPreparing", "complete");
-    markStep("stepCalling", "complete");
-    return;
-  }
-
-  if (["rejected", "not_qualified", "manual_review", "failed", "call_failed"].includes(status)) {
-    title.textContent = "Application update";
-    description.textContent = message ||
-      "Your application has been processed. The recruitment team will handle the next step.";
-    liveStatus.textContent = "Workflow updated";
-    resultStatus.textContent = rawStatus || "Updated";
-    markStep("stepScreening", "complete");
-    return;
-  }
-
-  title.textContent = "Ella is processing your application";
-  description.textContent = message ||
-    "Your application was submitted successfully. Please keep your phone nearby while the recruitment workflow continues.";
-  liveStatus.textContent = "Checking interview status";
-  resultStatus.textContent = rawStatus || "Processing";
-  markStep("stepScreening", "active");
 }
 
-function resetTimeline() {
-  ["stepSubmitted", "stepScreening", "stepPreparing", "stepCalling"].forEach((id) => {
-    document.getElementById(id).classList.remove("active", "complete");
+function getDisplayStatus(stage, data) {
+  const resumeStatus = String(data.resume_status || "").trim();
+  const voiceStatus = String(data.voice_status || "").trim();
+  const finalStatus = String(data.final_status || "").trim();
+
+  const states = {
+    resume_received: {
+      live: "Resume received",
+      result: resumeStatus || "Received"
+    },
+    screening: {
+      live: "Screening resume",
+      result: resumeStatus || "Screening"
+    },
+    preparing_call: {
+      live: "Preparing voice interview",
+      result: voiceStatus || resumeStatus || "Preparing call"
+    },
+    calling: {
+      live: "Voice interview in progress",
+      result: voiceStatus || "Interviewing"
+    },
+    completed: {
+      live: "Voice interview completed",
+      result: voiceStatus || "Interviewed"
+    },
+    callback: {
+      live: "Call back pending",
+      result: voiceStatus || "Call Back"
+    },
+    manual_review: {
+      live: "Recruitment team review",
+      result: voiceStatus || "Manual Review"
+    },
+    rejected: {
+      live: "Application reviewed",
+      result: finalStatus || voiceStatus || resumeStatus || "Rejected"
+    },
+    final_interview: {
+      live: "Final interview scheduled",
+      result: finalStatus || "Interview Scheduled"
+    },
+    final_interview_reschedule: {
+      live: "Final interview update",
+      result: finalStatus || "Reschedule Required"
+    },
+    error: {
+      live: "Unable to retrieve status",
+      result: "Error"
+    }
+  };
+
+  return states[stage] || {
+    live: "Checking interview status",
+    result: resumeStatus || voiceStatus || finalStatus || "Processing"
+  };
+}
+
+function setTimelineStep(currentStep) {
+  const steps = [
+    { id: "stepSubmitted", number: "1" },
+    { id: "stepScreening", number: "2" },
+    { id: "stepPreparing", number: "3" },
+    { id: "stepCalling", number: "4" }
+  ];
+
+  steps.forEach((stepItem, index) => {
+    const element = document.getElementById(stepItem.id);
+    const dot = element.querySelector(".step-dot");
+    const stepNumber = index + 1;
+
+    element.classList.remove("active", "complete");
+    dot.textContent = stepItem.number;
+
+    if (stepNumber < currentStep) {
+      element.classList.add("complete");
+      dot.textContent = "✓";
+    } else if (stepNumber === currentStep) {
+      element.classList.add("active");
+    }
   });
 }
 
-function markStep(id, state) {
-  const element = document.getElementById(id);
-  element.classList.remove("active", "complete");
-  element.classList.add(state);
-
-  if (state === "complete") {
-    element.querySelector(".step-dot").textContent = "✓";
-  }
-}
-
-function isFinalStatus(rawStatus) {
-  const status = normalizeStatus(rawStatus);
-  return [
-    "completed",
-    "interview_completed",
-    "call_completed",
-    "rejected",
-    "not_qualified",
-    "manual_review",
-    "failed",
-    "call_failed"
-  ].includes(status);
+function normalizeStatus(status) {
+  return String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 }
 
 function showError(message) {
@@ -1053,6 +1075,7 @@ function showError(message) {
 
 function resetForm() {
   stopStatusPolling();
+  activeApplicationId = null;
   form.reset();
   fileName.textContent = "No file selected";
 
@@ -1063,7 +1086,14 @@ function resetForm() {
 
   document.getElementById("appid").textContent = "Processing...";
   document.getElementById("resultStatus").textContent = "Screening";
-  document.getElementById("liveStatusText").textContent = "Checking interview status";
+  document.getElementById("liveStatusText").textContent =
+    "Checking interview status";
+  document.getElementById("callTitle").textContent =
+    "Ella is preparing your interview";
+  document.getElementById("callMessage").textContent =
+    "Your application was submitted successfully. Please keep your phone nearby while Ella prepares the voice interview.";
+
+  setTimelineStep(2);
 }
 </script>
 </body>
