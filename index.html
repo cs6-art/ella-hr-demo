@@ -983,6 +983,7 @@ function renderApplicationStatus(data) {
     "Your application is moving through Ella's recruitment workflow.";
 
   setTimelineStep(step);
+  updateTimelineForStage(stage);
 
   const displayStatus = getDisplayStatus(stage, data);
   liveStatus.textContent = displayStatus.live;
@@ -991,6 +992,53 @@ function renderApplicationStatus(data) {
   if (data.application_id) {
     activeApplicationId = data.application_id;
     document.getElementById("appid").textContent = data.application_id;
+  }
+}
+
+
+function updateTimelineForStage(stage) {
+  const callingStep = document.getElementById("stepCalling");
+  const callingLabel = callingStep.querySelector("span:last-child");
+  const callingDot = callingStep.querySelector(".step-dot");
+
+  callingLabel.textContent = "Voice interview call";
+
+  if (stage === "final_interview") {
+    callingLabel.textContent = "Final interview scheduled";
+    callingStep.classList.remove("active");
+    callingStep.classList.add("complete");
+    callingDot.textContent = "✓";
+    return;
+  }
+
+  if (stage === "final_interview_reschedule") {
+    callingLabel.textContent = "Final interview rescheduling";
+    callingStep.classList.remove("active");
+    callingStep.classList.add("complete");
+    callingDot.textContent = "✓";
+    return;
+  }
+
+  if (stage === "completed") {
+    callingLabel.textContent = "Voice interview completed";
+    callingStep.classList.remove("active");
+    callingStep.classList.add("complete");
+    callingDot.textContent = "✓";
+    return;
+  }
+
+  if (stage === "callback") {
+    callingLabel.textContent = "Call back pending";
+    return;
+  }
+
+  if (stage === "manual_review") {
+    callingLabel.textContent = "Recruitment team review";
+    return;
+  }
+
+  if (stage === "rejected") {
+    callingLabel.textContent = "Application reviewed";
   }
 }
 
@@ -1116,6 +1164,7 @@ function resetForm() {
     "Your application was submitted successfully. Please keep your phone nearby while Ella prepares the voice interview.";
 
   setTimelineStep(2);
+  updateTimelineForStage("screening");
 }
 </script>
 </body>
