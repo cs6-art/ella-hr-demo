@@ -767,7 +767,6 @@ const WEBHOOK_URL =
 const STATUS_WEBHOOK_URL =
   "https://n8n.srv1457709.hstgr.cloud/webhook/ella-application-status";
 
-// Your resume processor runs every minute, so polling every 5 seconds is enough.
 const POLL_INTERVAL_MS = 5000;
 
 const loadingSteps = [
@@ -831,7 +830,8 @@ form.addEventListener("submit", async (event) => {
   try {
     const response = await fetch(WEBHOOK_URL, {
       method: "POST",
-      body: formData
+      body: formData,
+      cache: "no-store"
     });
 
     const responseText = await response.text();
@@ -864,12 +864,12 @@ form.addEventListener("submit", async (event) => {
     activeApplicationId = applicationId;
     document.getElementById("appid").textContent = applicationId;
 
-    // Show the first state immediately while waiting for the first GET status response.
     renderApplicationStatus({
       stage: "screening",
       step: 2,
       title: "Ella is reviewing your application",
-      message: data.message ||
+      message:
+        data.message ||
         "Your resume was submitted successfully. Ella is now reviewing the application before starting the interview workflow.",
       resume_status: data.status || "Processing",
       voice_status: "",
@@ -897,30 +897,45 @@ function startStatusPolling(applicationId) {
     try {
       const url = new URL(STATUS_WEBHOOK_URL);
       url.searchParams.set("application_id", applicationId);
+      url.searchParams.set("_", Date.now().toString());
 
       const response = await fetch(url.toString(), {
         method: "GET",
-        headers: { "Accept": "application/json" },
+        headers: {
+          Accept: "application/json"
+        },
         cache: "no-store"
       });
 
       const responseText = await response.text();
-      let data = {};
+      console.log("Ella raw status response:", responseText);
+
+      let parsedData = {};
 
       try {
-        data = responseText ? JSON.parse(responseText) : {};
+        parsedData = responseText ? JSON.parse(responseText) : {};
       } catch {
         throw new Error("The status webhook returned invalid JSON.");
       }
 
+      const data = Array.isArray(parsedData)
+        ? parsedData[0]
+        : parsedData;
+
+      console.log("Ella parsed status:", data);
+
       if (!response.ok) {
         throw new Error(
-          data.message || `Status request failed with ${response.status}`
+          data?.message ||
+          `Status request failed with ${response.status}`
         );
       }
 
-      // not_found is temporary because the Google Sheets row may not be visible yet.
-      if (data.stage === "not_found") {
+      if (!data || typeof data !== "object") {
+        throw new Error("The status webhook returned an empty response.");
+      }
+
+      if (normalizeStatus(data.stage) === "not_found") {
         document.getElementById("liveStatusText").textContent =
           "Waiting for application record";
         return;
@@ -932,7 +947,7 @@ function startStatusPolling(applicationId) {
         stopStatusPolling();
       }
     } catch (error) {
-      console.warn("Unable to refresh Ella status:", error);
+      console.error("Unable to refresh Ella status:", error);
       document.getElementById("liveStatusText").textContent =
         "Reconnecting to Ella's workflow";
     }
@@ -950,15 +965,21 @@ function stopStatusPolling() {
 }
 
 function renderApplicationStatus(data) {
+  console.log("Rendering Ella status:", data);
+
   const stage = normalizeStatus(data.stage || "screening");
   const step = Number(data.step || 2);
+
   const title = document.getElementById("callTitle");
   const description = document.getElementById("callMessage");
   const liveStatus = document.getElementById("liveStatusText");
   const resultStatus = document.getElementById("resultStatus");
 
-  title.textContent = data.title || "Ella is reviewing your application";
-  description.textContent = data.message ||
+  title.textContent =
+    data.title || "Ella is reviewing your application";
+
+  description.textContent =
+    data.message ||
     "Your application is moving through Ella's recruitment workflow.";
 
   setTimelineStep(step);
@@ -967,7 +988,6 @@ function renderApplicationStatus(data) {
   liveStatus.textContent = displayStatus.live;
   resultStatus.textContent = displayStatus.result;
 
-  // Keep the latest application ID if the status webhook returns it.
   if (data.application_id) {
     activeApplicationId = data.application_id;
     document.getElementById("appid").textContent = data.application_id;
@@ -1033,6 +1053,8 @@ function getDisplayStatus(stage, data) {
 }
 
 function setTimelineStep(currentStep) {
+  const safeStep = Math.max(1, Math.min(4, Number(currentStep) || 1));
+
   const steps = [
     { id: "stepSubmitted", number: "1" },
     { id: "stepScreening", number: "2" },
@@ -1048,10 +1070,10 @@ function setTimelineStep(currentStep) {
     element.classList.remove("active", "complete");
     dot.textContent = stepItem.number;
 
-    if (stepNumber < currentStep) {
+    if (stepNumber < safeStep) {
       element.classList.add("complete");
       dot.textContent = "✓";
-    } else if (stepNumber === currentStep) {
+    } else if (stepNumber === safeStep) {
       element.classList.add("active");
     }
   });
