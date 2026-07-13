@@ -20,6 +20,8 @@
   --surface: rgba(255, 255, 255, 0.92);
   --success: #168447;
   --success-soft: #eaf8f0;
+  --warning: #c77a13;
+  --warning-soft: #fff7e8;
 }
 
 * {
@@ -28,9 +30,7 @@
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
-}
+html { scroll-behavior: smooth; }
 
 body {
   min-height: 100vh;
@@ -44,13 +44,8 @@ body {
 }
 
 button,
-input {
-  font: inherit;
-}
-
-button {
-  border: 0;
-}
+input { font: inherit; }
+button { border: 0; }
 
 .page-shell {
   max-width: 1180px;
@@ -68,9 +63,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow:
-    0 12px 30px rgba(14, 68, 113, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: 0 12px 30px rgba(14, 68, 113, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .brand {
@@ -188,14 +181,11 @@ button {
   box-shadow: 0 24px 58px rgba(14, 68, 113, 0.10);
 }
 
-.demo-card {
-  overflow: hidden;
-}
+.demo-card { overflow: hidden; }
 
 .card-header {
   padding: 28px 30px 22px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 253, 0.96));
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 253, 0.96));
   border-bottom: 1px solid #edf2f7;
 }
 
@@ -211,15 +201,10 @@ button {
   line-height: 1.6;
 }
 
-.form-wrap {
-  padding: 26px 30px 30px;
-}
+.form-wrap { padding: 26px 30px 30px; }
+.form-group { margin-bottom: 20px; }
 
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
+.form-group > label:first-child {
   display: block;
   margin-bottom: 8px;
   color: #25384e;
@@ -227,34 +212,12 @@ button {
   font-weight: 700;
 }
 
-.input-shell {
-  position: relative;
-}
-
-.input-shell input[type="text"] {
-  width: 100%;
-  border: 1px solid #dbe4ed;
-  background: #fbfdff;
-  border-radius: 13px;
-  padding: 14px 15px;
-  font-size: 14px;
-  color: var(--text);
-  outline: none;
-  transition: border 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.input-shell input[type="text"]:focus {
-  border-color: var(--primary);
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(14, 68, 113, 0.08);
-}
-
 .file-upload {
   display: block;
   border: 1px dashed #bdd0df;
   border-radius: 16px;
   background: linear-gradient(180deg, #fbfdff, #f7fbff);
-  padding: 22px;
+  padding: 28px 22px;
   text-align: center;
   cursor: pointer;
   transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
@@ -266,9 +229,7 @@ button {
   transform: translateY(-1px);
 }
 
-.file-upload input {
-  display: none;
-}
+.file-upload input { display: none; }
 
 .file-icon {
   width: 48px;
@@ -335,9 +296,7 @@ button {
   color: #8a98a9;
 }
 
-.process-card {
-  padding: 26px;
-}
+.process-card { padding: 26px; }
 
 .process-label {
   color: var(--primary);
@@ -354,10 +313,7 @@ button {
   margin-bottom: 20px;
 }
 
-.process-list {
-  display: grid;
-  gap: 14px;
-}
+.process-list { display: grid; gap: 14px; }
 
 .process-item {
   display: flex;
@@ -417,7 +373,7 @@ button {
 }
 
 #loading,
-#success,
+#callWaiting,
 #errorState {
   display: none;
   padding: 40px 30px;
@@ -434,47 +390,124 @@ button {
   margin: 0 auto 18px;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 #loading h3,
-#success h2,
+#callWaiting h2,
 #errorState h2 {
   font-size: 21px;
   margin-bottom: 8px;
 }
 
 #status,
-#success p,
+#callMessage,
 #errorState p {
   color: var(--muted);
   font-size: 14px;
+  line-height: 1.6;
 }
 
-.check,
-.error-icon {
-  width: 66px;
-  height: 66px;
+.call-visual {
+  width: 78px;
+  height: 78px;
+  margin: 0 auto 18px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  margin: 0 auto 18px;
-  font-size: 32px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 34px;
+  position: relative;
 }
 
-.check {
-  color: var(--success);
+.call-visual::before,
+.call-visual::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 2px solid rgba(14, 68, 113, 0.18);
+  border-radius: 50%;
+  animation: pulse 2s ease-out infinite;
+}
+
+.call-visual::after { animation-delay: 1s; }
+
+@keyframes pulse {
+  0% { transform: scale(0.88); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.live-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink { 50% { opacity: 0.35; } }
+
+.status-timeline {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid #e3eaf1;
+  background: #f8fbfd;
+  border-radius: 15px;
+  text-align: left;
+}
+
+.status-step {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
+  color: #8492a3;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-step + .status-step { border-top: 1px solid #e9eef3; }
+
+.step-dot {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid #d7e0e8;
+  background: #fff;
+  font-size: 10px;
+}
+
+.status-step.active { color: var(--primary); }
+.status-step.active .step-dot {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.status-step.complete { color: var(--success); }
+.status-step.complete .step-dot {
+  border-color: var(--success);
   background: var(--success-soft);
 }
 
-.error-icon {
-  color: #c23a3a;
-  background: #fff0f0;
-}
-
 .info {
-  margin-top: 22px;
+  margin-top: 20px;
   background: #f8fbfd;
   border: 1px solid #e3eaf1;
   padding: 18px;
@@ -490,21 +523,26 @@ button {
   border-bottom: 1px solid #e9eef3;
 }
 
-.info-row:last-child {
-  border-bottom: 0;
-}
-
-.info-row span:first-child {
-  color: #7a899b;
-  font-size: 12px;
-}
-
+.info-row:last-child { border-bottom: 0; }
+.info-row span:first-child { color: #7a899b; font-size: 12px; }
 .info-row span:last-child {
   color: #1f3044;
   font-size: 12px;
   font-weight: 700;
   text-align: right;
   word-break: break-word;
+}
+
+.error-icon {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 18px;
+  font-size: 32px;
+  color: #c23a3a;
+  background: #fff0f0;
 }
 
 .try-again {
@@ -526,67 +564,34 @@ button {
 }
 
 @media (max-width: 820px) {
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .process-card {
-    order: 2;
-  }
+  .workspace { grid-template-columns: 1fr; }
+  .process-card { order: 2; }
 }
 
 @media (max-width: 640px) {
-  body {
-    padding: 14px;
-  }
-
-  .nav {
-    padding: 12px 13px;
-    border-radius: 16px;
-  }
-
-  .nav-button {
-    display: none;
-  }
-
-  .hero {
-    margin-top: 44px;
-  }
-
-  .hero h1 {
-    letter-spacing: -2px;
-  }
-
+  body { padding: 14px; }
+  .nav { padding: 12px 13px; border-radius: 16px; }
+  .nav-button { display: none; }
+  .hero { margin-top: 44px; }
+  .hero h1 { letter-spacing: -2px; }
   .card-header,
   .form-wrap,
   #loading,
-  #success,
+  #callWaiting,
   #errorState {
     padding-left: 22px;
     padding-right: 22px;
   }
-
   .demo-card,
-  .process-card {
-    border-radius: 20px;
-  }
-
-  .info-row {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .info-row span:last-child {
-    text-align: left;
-  }
+  .process-card { border-radius: 20px; }
+  .info-row { flex-direction: column; gap: 4px; }
+  .info-row span:last-child { text-align: left; }
 }
 </style>
 </head>
 
 <body>
-
 <div class="page-shell">
-
   <nav class="nav">
     <div class="brand">
       <div class="logo">✦</div>
@@ -610,45 +615,24 @@ button {
     <h1>Meet Ella, your AI hiring assistant.</h1>
 
     <p>
-      Upload a candidate resume and contact number. Ella will create the application,
-      screen the resume, and continue the recruitment workflow automatically.
+      Upload a candidate resume. Ella will create the application, screen the resume,
+      and continue the recruitment workflow automatically.
     </p>
   </section>
 
   <main class="workspace">
-
     <section class="demo-card" id="demo">
       <div class="card-header">
         <h2>Start a resume screening</h2>
-        <p>
-          Submit the candidate details below to begin the automated screening process.
-        </p>
+        <p>Upload the candidate resume to begin the automated screening process.</p>
       </div>
 
       <form id="demoForm" class="form-wrap">
         <div class="form-group">
-          <label for="contactNumber">Contact number</label>
-          <div class="input-shell">
-            <input
-              type="text"
-              id="contactNumber"
-              placeholder="+63 917 123 4567"
-              autocomplete="tel"
-              required
-            />
-          </div>
-        </div>
-
-        <div class="form-group">
           <label for="resume">Resume</label>
 
           <label class="file-upload" for="resume">
-            <input
-              type="file"
-              id="resume"
-              accept=".pdf,.doc,.docx"
-              required
-            />
+            <input type="file" id="resume" accept=".pdf,.doc,.docx" required />
 
             <div class="file-icon">⇧</div>
             <strong>Choose a resume file</strong>
@@ -672,25 +656,49 @@ button {
         <p id="status">Uploading resume...</p>
       </div>
 
-      <div id="success">
-        <div class="check">✓</div>
-        <h2>Application submitted</h2>
-        <p>Ella has received the resume and started the screening workflow.</p>
+      <div id="callWaiting">
+        <div class="call-visual">☎</div>
+        <h2 id="callTitle">Ella is preparing your interview</h2>
+        <p id="callMessage">
+          Your application was submitted successfully. Please keep your phone nearby while Ella prepares the voice interview.
+        </p>
+
+        <div class="live-status">
+          <span class="live-status-dot"></span>
+          <span id="liveStatusText">Checking interview status</span>
+        </div>
+
+        <div class="status-timeline">
+          <div class="status-step complete" id="stepSubmitted">
+            <span class="step-dot">✓</span>
+            <span>Resume received</span>
+          </div>
+          <div class="status-step active" id="stepScreening">
+            <span class="step-dot">2</span>
+            <span>AI resume screening</span>
+          </div>
+          <div class="status-step" id="stepPreparing">
+            <span class="step-dot">3</span>
+            <span>Preparing Ella's call</span>
+          </div>
+          <div class="status-step" id="stepCalling">
+            <span class="step-dot">4</span>
+            <span>Voice interview call</span>
+          </div>
+        </div>
 
         <div class="info">
           <div class="info-row">
             <span>Application ID</span>
             <span id="appid">Processing...</span>
           </div>
-
           <div class="info-row">
             <span>Position</span>
             <span>Accounting Supervisor</span>
           </div>
-
           <div class="info-row">
-            <span>Status</span>
-            <span id="resultStatus">Processing</span>
+            <span>Current status</span>
+            <span id="resultStatus">Screening</span>
           </div>
         </div>
 
@@ -702,9 +710,7 @@ button {
       <div id="errorState">
         <div class="error-icon">!</div>
         <h2>Submission failed</h2>
-        <p id="errorMessage">
-          The application could not be submitted.
-        </p>
+        <p id="errorMessage">The application could not be submitted.</p>
 
         <button class="try-again" type="button" onclick="resetForm()">
           Try Again
@@ -714,7 +720,6 @@ button {
 
     <aside class="process-card">
       <div class="process-label">How it works</div>
-
       <h3>From resume upload to AI screening in one flow.</h3>
 
       <div class="process-list">
@@ -722,7 +727,7 @@ button {
           <div class="process-number">01</div>
           <div class="process-copy">
             <strong>Submit application</strong>
-            <span>The resume and phone number are sent to n8n.</span>
+            <span>The resume is securely sent to the Ella workflow.</span>
           </div>
         </div>
 
@@ -737,8 +742,8 @@ button {
         <div class="process-item">
           <div class="process-number">03</div>
           <div class="process-copy">
-            <strong>Recruitment continues</strong>
-            <span>Qualified candidates proceed to the voice interview workflow.</span>
+            <strong>Voice interview</strong>
+            <span>Qualified candidates proceed to the automated call workflow.</span>
           </div>
         </div>
       </div>
@@ -750,18 +755,22 @@ button {
         <strong>Accounting Supervisor</strong>
       </div>
     </aside>
-
   </main>
 
-  <footer class="footer">
-    Powered by McLink Group
-  </footer>
-
+  <footer class="footer">Powered by McLink Group</footer>
 </div>
 
 <script>
 const WEBHOOK_URL =
   "https://n8n.srv1457709.hstgr.cloud/webhook/ella-demo-resume-intake";
+
+// Replace this with your separate n8n GET webhook for checking application/call status.
+// Expected example: GET /webhook/ella-application-status?application_id=APP-123
+const STATUS_WEBHOOK_URL =
+  "https://n8n.srv1457709.hstgr.cloud/webhook/ella-application-status";
+
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 40;
 
 const loadingSteps = [
   "Uploading resume...",
@@ -773,12 +782,15 @@ const loadingSteps = [
 
 const form = document.getElementById("demoForm");
 const loading = document.getElementById("loading");
-const success = document.getElementById("success");
+const callWaiting = document.getElementById("callWaiting");
 const errorState = document.getElementById("errorState");
 const statusText = document.getElementById("status");
 const submitButton = document.getElementById("submitButton");
 const fileInput = document.getElementById("resume");
 const fileName = document.getElementById("fileName");
+
+let pollingTimer = null;
+let pollingAttempts = 0;
 
 fileInput.addEventListener("change", () => {
   fileName.textContent = fileInput.files[0]
@@ -789,21 +801,16 @@ fileInput.addEventListener("change", () => {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const contactNumber = document
-    .getElementById("contactNumber")
-    .value
-    .trim();
-
   const resumeFile = fileInput.files[0];
 
-  if (!contactNumber || !resumeFile) {
-    showError("Please enter a contact number and select a resume.");
+  if (!resumeFile) {
+    showError("Please select a resume file.");
     return;
   }
 
   form.style.display = "none";
   errorState.style.display = "none";
-  success.style.display = "none";
+  callWaiting.style.display = "none";
   loading.style.display = "block";
   submitButton.disabled = true;
 
@@ -812,14 +819,12 @@ form.addEventListener("submit", async (event) => {
 
   const interval = setInterval(() => {
     stepIndex += 1;
-
     if (stepIndex < loadingSteps.length) {
       statusText.textContent = loadingSteps[stepIndex];
     }
   }, 900);
 
   const formData = new FormData();
-  formData.append("contact_number", contactNumber);
   formData.append("resume", resumeFile);
 
   try {
@@ -829,7 +834,6 @@ form.addEventListener("submit", async (event) => {
     });
 
     const responseText = await response.text();
-
     let data = {};
 
     try {
@@ -847,16 +851,23 @@ form.addEventListener("submit", async (event) => {
     }
 
     clearInterval(interval);
-
     loading.style.display = "none";
-    success.style.display = "block";
+    callWaiting.style.display = "block";
 
-    document.getElementById("appid").textContent =
-      data.application_id || "N/A";
+    const applicationId = data.application_id || data.id || "N/A";
+    document.getElementById("appid").textContent = applicationId;
 
-    document.getElementById("resultStatus").textContent =
-      data.status || "Processing";
+    updateCallStatus(
+      data.call_status || data.status || "screening",
+      data.message
+    );
 
+    if (applicationId !== "N/A") {
+      startStatusPolling(applicationId);
+    } else {
+      document.getElementById("liveStatusText").textContent =
+        "Application submitted successfully";
+    }
   } catch (error) {
     clearInterval(interval);
     loading.style.display = "none";
@@ -869,27 +880,191 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
+function startStatusPolling(applicationId) {
+  stopStatusPolling();
+  pollingAttempts = 0;
+
+  const poll = async () => {
+    pollingAttempts += 1;
+
+    try {
+      const url = new URL(STATUS_WEBHOOK_URL);
+      url.searchParams.set("application_id", applicationId);
+
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        throw new Error(`Status request failed with ${response.status}`);
+      }
+
+      const data = await response.json();
+      const currentStatus =
+        data.call_status || data.status || data.application_status || "screening";
+
+      updateCallStatus(currentStatus, data.message);
+
+      if (isFinalStatus(currentStatus) || pollingAttempts >= MAX_POLL_ATTEMPTS) {
+        stopStatusPolling();
+      }
+    } catch (error) {
+      console.warn("Unable to refresh Ella status:", error);
+
+      if (pollingAttempts >= MAX_POLL_ATTEMPTS) {
+        stopStatusPolling();
+        document.getElementById("liveStatusText").textContent =
+          "Application submitted. Ella's workflow is continuing.";
+      }
+    }
+  };
+
+  poll();
+  pollingTimer = setInterval(poll, POLL_INTERVAL_MS);
+}
+
+function stopStatusPolling() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+    pollingTimer = null;
+  }
+}
+
+function normalizeStatus(status) {
+  return String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function updateCallStatus(rawStatus, message) {
+  const status = normalizeStatus(rawStatus);
+  const title = document.getElementById("callTitle");
+  const description = document.getElementById("callMessage");
+  const liveStatus = document.getElementById("liveStatusText");
+  const resultStatus = document.getElementById("resultStatus");
+
+  resetTimeline();
+  markStep("stepSubmitted", "complete");
+
+  if (["received", "submitted", "queued", "processing", "screening", "resume_screening"].includes(status)) {
+    title.textContent = "Ella is reviewing your application";
+    description.textContent = message ||
+      "Your resume was submitted successfully. Ella is now reviewing the application before starting the interview workflow.";
+    liveStatus.textContent = "Screening resume";
+    resultStatus.textContent = "Screening";
+    markStep("stepScreening", "active");
+    return;
+  }
+
+  if (["qualified", "call_queued", "preparing_call", "ready_for_call"].includes(status)) {
+    title.textContent = "Ella is preparing your interview";
+    description.textContent = message ||
+      "Your application has progressed to the voice interview stage. Please keep your phone nearby for Ella's call.";
+    liveStatus.textContent = "Preparing voice interview";
+    resultStatus.textContent = "Call queued";
+    markStep("stepScreening", "complete");
+    markStep("stepPreparing", "active");
+    return;
+  }
+
+  if (["calling", "ringing", "in_progress", "call_in_progress"].includes(status)) {
+    title.textContent = "Ella is calling you now";
+    description.textContent = message ||
+      "Please answer the incoming call to begin your AI voice interview.";
+    liveStatus.textContent = "Call in progress";
+    resultStatus.textContent = "Calling";
+    markStep("stepScreening", "complete");
+    markStep("stepPreparing", "complete");
+    markStep("stepCalling", "active");
+    return;
+  }
+
+  if (["completed", "interview_completed", "call_completed"].includes(status)) {
+    title.textContent = "Interview completed";
+    description.textContent = message ||
+      "Ella has completed the voice interview. The recruitment team will review the results.";
+    liveStatus.textContent = "Interview completed";
+    resultStatus.textContent = "Completed";
+    markStep("stepScreening", "complete");
+    markStep("stepPreparing", "complete");
+    markStep("stepCalling", "complete");
+    return;
+  }
+
+  if (["rejected", "not_qualified", "manual_review", "failed", "call_failed"].includes(status)) {
+    title.textContent = "Application update";
+    description.textContent = message ||
+      "Your application has been processed. The recruitment team will handle the next step.";
+    liveStatus.textContent = "Workflow updated";
+    resultStatus.textContent = rawStatus || "Updated";
+    markStep("stepScreening", "complete");
+    return;
+  }
+
+  title.textContent = "Ella is processing your application";
+  description.textContent = message ||
+    "Your application was submitted successfully. Please keep your phone nearby while the recruitment workflow continues.";
+  liveStatus.textContent = "Checking interview status";
+  resultStatus.textContent = rawStatus || "Processing";
+  markStep("stepScreening", "active");
+}
+
+function resetTimeline() {
+  ["stepSubmitted", "stepScreening", "stepPreparing", "stepCalling"].forEach((id) => {
+    document.getElementById(id).classList.remove("active", "complete");
+  });
+}
+
+function markStep(id, state) {
+  const element = document.getElementById(id);
+  element.classList.remove("active", "complete");
+  element.classList.add(state);
+
+  if (state === "complete") {
+    element.querySelector(".step-dot").textContent = "✓";
+  }
+}
+
+function isFinalStatus(rawStatus) {
+  const status = normalizeStatus(rawStatus);
+  return [
+    "completed",
+    "interview_completed",
+    "call_completed",
+    "rejected",
+    "not_qualified",
+    "manual_review",
+    "failed",
+    "call_failed"
+  ].includes(status);
+}
+
 function showError(message) {
+  stopStatusPolling();
   form.style.display = "none";
   loading.style.display = "none";
-  success.style.display = "none";
+  callWaiting.style.display = "none";
   errorState.style.display = "block";
   document.getElementById("errorMessage").textContent = message;
 }
 
 function resetForm() {
+  stopStatusPolling();
   form.reset();
   fileName.textContent = "No file selected";
 
   loading.style.display = "none";
-  success.style.display = "none";
+  callWaiting.style.display = "none";
   errorState.style.display = "none";
   form.style.display = "block";
 
   document.getElementById("appid").textContent = "Processing...";
-  document.getElementById("resultStatus").textContent = "Processing";
+  document.getElementById("resultStatus").textContent = "Screening";
+  document.getElementById("liveStatusText").textContent = "Checking interview status";
 }
 </script>
-
 </body>
 </html>
