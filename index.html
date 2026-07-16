@@ -615,8 +615,8 @@ button { border: 0; }
     <h1>Meet Ella, your AI hiring assistant.</h1>
 
     <p>
-      Upload a candidate resume. Ella will create the application, screen the resume,
-      and continue the recruitment automatically.
+      Upload a candidate resume. Ella will screen the application, coordinate the voice interview,
+      and guide qualified candidates toward the final interview stage.
     </p>
   </section>
 
@@ -679,11 +679,11 @@ button { border: 0; }
           </div>
           <div class="status-step" id="stepPreparing">
             <span class="step-dot">3</span>
-            <span>Preparing Ella's call</span>
+            <span>Voice interview</span>
           </div>
           <div class="status-step" id="stepCalling">
             <span class="step-dot">4</span>
-            <span>Voice interview call</span>
+            <span>Final interview</span>
           </div>
         </div>
 
@@ -694,11 +694,21 @@ button { border: 0; }
           </div>
           <div class="info-row">
             <span>Position</span>
-            <span>Accounting Supervisor</span>
+            <span id="position">Processing...</span>
           </div>
           <div class="info-row">
-            <span>Current status</span>
-            <span id="resultStatus">Screening</span>
+            <span>Resume</span>
+            <span id="resumeStatus">Processing</span>
+          </div>
+
+          <div class="info-row">
+            <span>Voice Interview</span>
+            <span id="voiceStatus">Pending</span>
+          </div>
+
+          <div class="info-row">
+            <span>Final Interview</span>
+            <span id="finalStatus">Pending</span>
           </div>
         </div>
 
@@ -720,7 +730,7 @@ button { border: 0; }
 
     <aside class="process-card">
       <div class="process-label">How it works</div>
-      <h3>From resume upload to AI screening in one flow.</h3>
+      <h3>From resume upload to final interview coordination in one flow.</h3>
 
       <div class="process-list">
         <div class="process-item">
@@ -742,8 +752,15 @@ button { border: 0; }
         <div class="process-item">
           <div class="process-number">03</div>
           <div class="process-copy">
-            <strong>Voice interview</strong>
-            <span>Qualified candidates proceed to the automated call interview.</span>
+            <strong>Voice interview scheduling</strong>
+            <span>Qualified candidates receive instructions to schedule Ella's interview.</span>
+          </div>
+        </div>
+        <div class="process-item">
+          <div class="process-number">04</div>
+          <div class="process-copy">
+            <strong>Final interview invitation</strong>
+            <span>Successful candidates receive a Google Calendar booking invitation.</span>
           </div>
         </div>
       </div>
@@ -859,17 +876,21 @@ form.addEventListener("submit", async (event) => {
 
     activeApplicationId = applicationId;
     document.getElementById("appid").textContent = applicationId;
+    document.getElementById("position").textContent =
+      data.role || data.position || data.selected_role || "N/A";
 
     renderApplicationStatus({
+      application_id: applicationId,
+      role: data.role || data.position || data.selected_role || "N/A",
       stage: "screening",
       step: 2,
       title: "Ella is reviewing your application",
       message:
         data.message ||
         "Your resume was submitted successfully. Ella is now reviewing the application before starting the interview workflow.",
-      resume_status: data.status || "Processing",
-      voice_status: "",
-      final_status: "",
+      resume_status: data.resume_status || data.status || "Processing",
+      voice_status: data.voice_status || "Pending",
+      final_status: data.final_status || "Pending",
       stop_polling: false
     });
 
@@ -939,7 +960,18 @@ function startStatusPolling(applicationId) {
 
       renderApplicationStatus(data);
 
-      if (data.stop_polling === true) {
+      const normalizedStage = normalizeStatus(data.stage);
+
+      const terminalStages = [
+        "rejected",
+        "invalid_phone",
+        "final_interview_scheduled"
+      ];
+
+      if (
+        data.stop_polling === true ||
+        terminalStages.includes(normalizedStage)
+      ) {
         stopStatusPolling();
       }
     } catch (error) {
@@ -963,85 +995,337 @@ function stopStatusPolling() {
 function renderApplicationStatus(data) {
   console.log("Rendering Ella status:", data);
 
-  const stage = normalizeStatus(data.stage || "screening");
-  const step = Number(data.step || 2);
+  const stage = resolveStage(data);
+  const step = Number(data.step || getStepForStage(stage));
 
   const title = document.getElementById("callTitle");
   const description = document.getElementById("callMessage");
   const liveStatus = document.getElementById("liveStatusText");
-  const resultStatus = document.getElementById("resultStatus");
 
-  title.textContent =
-    data.title || "Ella is reviewing your application";
-
-  description.textContent =
-    data.message ||
-    "Your application is moving through Ella's recruitment workflow.";
+  title.textContent = data.title || getDefaultTitle(stage);
+  description.textContent = data.message || getDefaultMessage(stage);
 
   setTimelineStep(step);
   updateTimelineForStage(stage);
 
   const displayStatus = getDisplayStatus(stage, data);
   liveStatus.textContent = displayStatus.live;
-  resultStatus.textContent = displayStatus.result;
 
   if (data.application_id) {
     activeApplicationId = data.application_id;
     document.getElementById("appid").textContent = data.application_id;
   }
+
+  document.getElementById("position").textContent =
+    data.role ||
+    data.position ||
+    data.selected_role ||
+    document.getElementById("position").textContent ||
+    "N/A";
+
+  document.getElementById("resumeStatus").textContent =
+    normalizeDisplayValue(data.resume_status, "Processing");
+
+  document.getElementById("voiceStatus").textContent =
+    normalizeDisplayValue(data.voice_status, "Pending");
+
+  document.getElementById("finalStatus").textContent =
+    normalizeDisplayValue(data.final_status, "Pending");
 }
 
+function resolveStage(data) {
+  const explicitStage = normalizeStatus(data.stage);
+
+  if (explicitStage && explicitStage !== "n_a") {
+    return explicitStage;
+  }
+
+  const resumeStatus = normalizeStatus(data.resume_status);
+  const voiceStatus = normalizeStatus(data.voice_status);
+  const finalStatus = normalizeStatus(data.final_status);
+
+  if (
+    finalStatus === "final_interview_scheduled" ||
+    finalStatus === "interview_scheduled"
+  ) {
+    return "final_interview_scheduled";
+  }
+
+  if (finalStatus === "final_interview_invite_sent") {
+    return "final_interview_invite_sent";
+  }
+
+  if (finalStatus === "final_interview_invite_pending") {
+    return "final_interview_invite_pending";
+  }
+
+  if (voiceStatus === "interviewed") return "interviewed";
+  if (voiceStatus === "interviewing") return "interviewing";
+
+  if (
+    voiceStatus === "scheduled" ||
+    voiceStatus === "for_interview"
+  ) {
+    return "scheduled";
+  }
+
+  if (voiceStatus === "awaiting_schedule") {
+    return "awaiting_schedule";
+  }
+
+  if (
+    voiceStatus === "call_back" ||
+    voiceStatus === "ready_for_callback"
+  ) {
+    return "callback";
+  }
+
+  if (voiceStatus === "invalid_phone") {
+    return "invalid_phone";
+  }
+
+  if (
+    voiceStatus === "rejected" ||
+    finalStatus === "rejected" ||
+    resumeStatus === "rejected"
+  ) {
+    return "rejected";
+  }
+
+  if (resumeStatus === "processed") {
+    return "awaiting_schedule";
+  }
+
+  return "screening";
+}
+
+function getStepForStage(stage) {
+  const stepMap = {
+    resume_received: 1,
+    screening: 2,
+    awaiting_schedule: 3,
+    scheduled: 3,
+    preparing_call: 3,
+    calling: 3,
+    interviewing: 3,
+    completed: 3,
+    interviewed: 3,
+    callback: 3,
+    manual_review: 3,
+    invalid_phone: 3,
+    rejected: 4,
+    final_interview_invite_pending: 4,
+    final_interview_invite_sent: 4,
+    final_interview_scheduled: 4,
+    final_interview_reschedule: 4,
+    error: 2
+  };
+
+  return stepMap[stage] || 2;
+}
+
+function getDefaultTitle(stage) {
+  const titles = {
+    resume_received: "Your resume has been received",
+    screening: "Ella is reviewing your application",
+    awaiting_schedule: "Your voice interview is ready to be scheduled",
+    scheduled: "Your voice interview has been scheduled",
+    preparing_call: "Ella is preparing your interview",
+    calling: "Ella is calling you",
+    interviewing: "Your voice interview is in progress",
+    completed: "Your voice interview is complete",
+    interviewed: "Your voice interview is complete",
+    callback: "Ella will try to reach you again",
+    manual_review: "Your application is under review",
+    invalid_phone: "Your phone number needs to be corrected",
+    rejected: "Your application has been reviewed",
+    final_interview_invite_pending: "Your final interview invitation is being prepared",
+    final_interview_invite_sent: "Your final interview invitation has been sent",
+    final_interview_scheduled: "Your final interview has been scheduled",
+    final_interview_reschedule: "Your final interview schedule is being updated",
+    error: "Unable to retrieve application status"
+  };
+
+  return titles[stage] || "Ella is reviewing your application";
+}
+
+function getDefaultMessage(stage) {
+  const messages = {
+    resume_received:
+      "Your resume was received successfully and will now be reviewed.",
+
+    screening:
+      "Your resume is being evaluated against the requirements of the role.",
+
+    awaiting_schedule:
+      "Please check your email for instructions on choosing a schedule for Ella's voice interview.",
+
+    scheduled:
+      "Your voice interview schedule has been confirmed. Please keep your phone available at the selected time.",
+
+    preparing_call:
+      "Ella is preparing the voice interview. Please keep your phone nearby.",
+
+    calling:
+      "Ella is currently trying to reach you for the voice interview.",
+
+    interviewing:
+      "The voice interview is currently in progress.",
+
+    completed:
+      "Your voice interview has been completed successfully. The recruitment team will review the results.",
+
+    interviewed:
+      "Your voice interview has been completed successfully. If shortlisted, you will receive a final interview invitation by email.",
+
+    callback:
+      "Ella could not reach you. A callback or rescheduling email may be sent. Please keep your phone available.",
+
+    manual_review:
+      "Your application requires additional review by the recruitment team.",
+
+    invalid_phone:
+      "We could not reach the phone number provided. Please contact HR to update your contact details.",
+
+    rejected:
+      "Thank you for your application. After review, we will not be proceeding with your application at this time.",
+
+    final_interview_invite_pending:
+      "You completed the voice interview successfully. Your final interview invitation is now being prepared.",
+
+    final_interview_invite_sent:
+      "Please check your email and choose from the available Google Calendar schedules.",
+
+    final_interview_scheduled:
+      "Congratulations. Your final interview has been scheduled. Please check your email for the meeting details.",
+
+    final_interview_reschedule:
+      "Your final interview schedule is being updated. Please check your email for the latest details.",
+
+    error:
+      "We could not retrieve the latest application status. Please try again later."
+  };
+
+  return messages[stage] ||
+    "Your application is moving through Ella's recruitment workflow.";
+}
 
 function updateTimelineForStage(stage) {
-  const callingStep = document.getElementById("stepCalling");
-  const callingLabel = callingStep.querySelector("span:last-child");
-  const callingDot = callingStep.querySelector(".step-dot");
+  const submittedStep = document.getElementById("stepSubmitted");
+  const screeningStep = document.getElementById("stepScreening");
+  const voiceStep = document.getElementById("stepPreparing");
+  const finalStep = document.getElementById("stepCalling");
 
-  callingLabel.textContent = "Voice interview call";
+  const voiceLabel = voiceStep.querySelector("span:last-child");
+  const finalLabel = finalStep.querySelector("span:last-child");
+  const voiceDot = voiceStep.querySelector(".step-dot");
+  const finalDot = finalStep.querySelector(".step-dot");
 
-  if (stage === "final_interview") {
-    callingLabel.textContent = "Final interview scheduled";
-    callingStep.classList.remove("active");
-    callingStep.classList.add("complete");
-    callingDot.textContent = "✓";
+  voiceLabel.textContent = "Voice interview";
+  finalLabel.textContent = "Final interview";
+
+  if (["resume_received", "screening"].includes(stage)) {
     return;
   }
 
-  if (stage === "final_interview_reschedule") {
-    callingLabel.textContent = "Final interview rescheduling";
-    callingStep.classList.remove("active");
-    callingStep.classList.add("complete");
-    callingDot.textContent = "✓";
+  if (
+    [
+      "awaiting_schedule",
+      "scheduled",
+      "preparing_call",
+      "calling",
+      "interviewing",
+      "callback",
+      "manual_review",
+      "invalid_phone"
+    ].includes(stage)
+  ) {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+
+    voiceStep.classList.remove("complete");
+    voiceStep.classList.add("active");
+    voiceDot.textContent = "3";
     return;
   }
 
-  if (stage === "completed") {
-    callingLabel.textContent = "Voice interview completed";
-    callingStep.classList.remove("active");
-    callingStep.classList.add("complete");
-    callingDot.textContent = "✓";
+  if (
+    [
+      "completed",
+      "interviewed",
+      "final_interview_invite_pending"
+    ].includes(stage)
+  ) {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+
+    voiceStep.classList.remove("active");
+    voiceStep.classList.add("complete");
+    voiceDot.textContent = "✓";
+
+    finalStep.classList.remove("complete");
+    finalStep.classList.add("active");
+    finalDot.textContent = "4";
+
+    if (stage === "final_interview_invite_pending") {
+      finalLabel.textContent = "Preparing final interview";
+    }
+
     return;
   }
 
-  if (stage === "callback") {
-    callingLabel.textContent = "Call back pending";
+  if (stage === "final_interview_invite_sent") {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+
+    voiceStep.classList.remove("active");
+    voiceStep.classList.add("complete");
+    voiceDot.textContent = "✓";
+
+    finalStep.classList.remove("complete");
+    finalStep.classList.add("active");
+    finalDot.textContent = "4";
+    finalLabel.textContent = "Final interview invitation sent";
     return;
   }
 
-  if (stage === "manual_review") {
-    callingLabel.textContent = "Recruitment team review";
+  if (
+    [
+      "final_interview_scheduled",
+      "final_interview_reschedule"
+    ].includes(stage)
+  ) {
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+
+    voiceStep.classList.remove("active");
+    voiceStep.classList.add("complete");
+    voiceDot.textContent = "✓";
+
+    finalStep.classList.remove("active");
+    finalStep.classList.add("complete");
+    finalDot.textContent = "✓";
+
+    finalLabel.textContent =
+      stage === "final_interview_scheduled"
+        ? "Final interview scheduled"
+        : "Final interview rescheduling";
+
     return;
   }
 
   if (stage === "rejected") {
-    callingLabel.textContent = "Application reviewed";
+    submittedStep.classList.add("complete");
+    screeningStep.classList.add("complete");
+    voiceStep.classList.remove("active");
+    finalStep.classList.remove("active");
   }
 }
 
 function getDisplayStatus(stage, data) {
-  const resumeStatus = String(data.resume_status || "").trim();
-  const voiceStatus = String(data.voice_status || "").trim();
-  const finalStatus = String(data.final_status || "").trim();
+  const resumeStatus = normalizeDisplayValue(data.resume_status, "");
+  const voiceStatus = normalizeDisplayValue(data.voice_status, "");
+  const finalStatus = normalizeDisplayValue(data.final_status, "");
 
   const states = {
     resume_received: {
@@ -1052,11 +1336,23 @@ function getDisplayStatus(stage, data) {
       live: "Screening resume",
       result: resumeStatus || "Screening"
     },
+    awaiting_schedule: {
+      live: "Waiting for voice interview schedule",
+      result: voiceStatus || "Awaiting Schedule"
+    },
+    scheduled: {
+      live: "Voice interview scheduled",
+      result: voiceStatus || "Scheduled"
+    },
     preparing_call: {
       live: "Preparing voice interview",
-      result: voiceStatus || resumeStatus || "Preparing call"
+      result: voiceStatus || resumeStatus || "Preparing Call"
     },
     calling: {
+      live: "Ella is calling",
+      result: voiceStatus || "Calling"
+    },
+    interviewing: {
       live: "Voice interview in progress",
       result: voiceStatus || "Interviewing"
     },
@@ -1064,21 +1360,37 @@ function getDisplayStatus(stage, data) {
       live: "Voice interview completed",
       result: voiceStatus || "Interviewed"
     },
+    interviewed: {
+      live: "Voice interview completed",
+      result: voiceStatus || "Interviewed"
+    },
     callback: {
-      live: "Call back pending",
+      live: "Callback pending",
       result: voiceStatus || "Call Back"
     },
     manual_review: {
       live: "Recruitment team review",
       result: voiceStatus || "Manual Review"
     },
+    invalid_phone: {
+      live: "Phone number requires correction",
+      result: voiceStatus || "Invalid Phone"
+    },
     rejected: {
       live: "Application reviewed",
       result: finalStatus || voiceStatus || resumeStatus || "Rejected"
     },
-    final_interview: {
+    final_interview_invite_pending: {
+      live: "Preparing final interview invitation",
+      result: finalStatus || "Final Interview Invite Pending"
+    },
+    final_interview_invite_sent: {
+      live: "Final interview invitation sent",
+      result: finalStatus || "Final Interview Invite Sent"
+    },
+    final_interview_scheduled: {
       live: "Final interview scheduled",
-      result: finalStatus || "Interview Scheduled"
+      result: finalStatus || "Final Interview Scheduled"
     },
     final_interview_reschedule: {
       live: "Final interview update",
@@ -1091,7 +1403,7 @@ function getDisplayStatus(stage, data) {
   };
 
   return states[stage] || {
-    live: "Checking interview status",
+    live: "Checking application status",
     result: resumeStatus || voiceStatus || finalStatus || "Processing"
   };
 }
@@ -1127,7 +1439,18 @@ function normalizeStatus(status) {
   return String(status || "")
     .trim()
     .toLowerCase()
-    .replace(/[\s-]+/g, "_");
+    .replace(/[\s-]+/g, "_")
+    .replace(/[()]/g, "");
+}
+
+function normalizeDisplayValue(value, fallback = "N/A") {
+  const text = String(value ?? "").trim();
+
+  if (!text || text.toUpperCase() === "N/A") {
+    return fallback;
+  }
+
+  return text;
 }
 
 function showError(message) {
@@ -1151,7 +1474,10 @@ function resetForm() {
   form.style.display = "block";
 
   document.getElementById("appid").textContent = "Processing...";
-  document.getElementById("resultStatus").textContent = "Screening";
+  document.getElementById("position").textContent = "Processing...";
+  document.getElementById("resumeStatus").textContent = "Processing";
+  document.getElementById("voiceStatus").textContent = "Pending";
+  document.getElementById("finalStatus").textContent = "Pending";
   document.getElementById("liveStatusText").textContent =
     "Checking interview status";
   document.getElementById("callTitle").textContent =
